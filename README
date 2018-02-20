@@ -1,3 +1,0 @@
-1. Platform: Caffe + matlab(R2016b)
-2. For Lenet5, run visualization_gui.m, then you can choose the parameters to display the plots.
-3. For ORION, run orion_gui.m, then you can plot the visualization figures according to your parameters setting.
