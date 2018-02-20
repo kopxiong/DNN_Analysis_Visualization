@@ -1,0 +1,595 @@
+function varargout = orion_gui(varargin)
+% ORION_GUI MATLAB code for orion_gui.fig
+%      ORION_GUI, by itself, creates a new ORION_GUI or raises the existing
+%      singleton*.
+%
+%      H = ORION_GUI returns the handle to a new ORION_GUI or the handle to
+%      the existing singleton*.
+%
+%      ORION_GUI('CALLBACK',hObject,eventData,handles,...) calls the local
+%      function named CALLBACK in ORION_GUI.M with the given input arguments.
+%
+%      ORION_GUI('Property','Value',...) creates a new ORION_GUI or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before orion_gui_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to orion_gui_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help orion_gui
+
+% Last Modified by GUIDE v2.5 03-May-2017 11:54:30
+
+% Begin initialization code - DO NOT EDIT
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @orion_gui_OpeningFcn, ...
+                   'gui_OutputFcn',  @orion_gui_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before orion_gui is made visible.
+function orion_gui_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to orion_gui (see VARARGIN)
+
+% Choose default command line output for orion_gui
+handles.output = hObject;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%     1. Load the training data    %%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% define the training data file names
+hdf5_file1 = '../../../../misc/lmbraid11/xiongy/data/bin_from_orig_mat/hdf5/train_allrot_shuffled/train.hdf5';
+hdf5_file2 = '../../../../misc/lmbraid11/xiongy/data/bin_from_orig_mat/hdf5/train_allrot_shuffled/train.hdf5.0002';
+hdf5_file3 = '../../../../misc/lmbraid11/xiongy/data/bin_from_orig_mat/hdf5/train_allrot_shuffled/train.hdf5.0003';
+hdf5_file4 = '../../../../misc/lmbraid11/xiongy/data/bin_from_orig_mat/hdf5/train_allrot_shuffled/train.hdf5.0004';
+hdf5_file5 = '../../../../misc/lmbraid11/xiongy/data/bin_from_orig_mat/hdf5/train_allrot_shuffled/train.hdf5.0005';
+
+% load the modelnet10 data and concatenate them
+mn10_data1 = h5read(hdf5_file1, '/data');
+mn10_data2 = h5read(hdf5_file2, '/data');
+mn10_data3 = h5read(hdf5_file3, '/data');
+mn10_data4 = h5read(hdf5_file4, '/data');
+mn10_data5 = h5read(hdf5_file5, '/data');
+
+handles.mn10_data = cat(5, mn10_data1, mn10_data2, mn10_data3, mn10_data4, mn10_data5);
+
+% load the labels and concatenate them
+mn10_label1 = h5read(hdf5_file1, '/label');
+mn10_label2 = h5read(hdf5_file2, '/label');
+mn10_label3 = h5read(hdf5_file3, '/label');
+mn10_label4 = h5read(hdf5_file4, '/label');
+mn10_label5 = h5read(hdf5_file5, '/label');
+
+mn10_label = cat(2, mn10_label1, mn10_label2, mn10_label3, mn10_label4, mn10_label5);
+
+% load the label_pose and concatenate them
+mn10_pose1 = h5read(hdf5_file1, '/label_pose');
+mn10_pose2 = h5read(hdf5_file2, '/label_pose');
+mn10_pose3 = h5read(hdf5_file3, '/label_pose');
+mn10_pose4 = h5read(hdf5_file4, '/label_pose');
+mn10_pose5 = h5read(hdf5_file5, '/label_pose');
+
+mn10_pose = cat(2, mn10_pose1, mn10_pose2, mn10_pose3, mn10_pose4, mn10_pose5);
+
+% % pick a small number for debug only
+% ind = floor(linspace(1, numel(mn10_label), 5000));
+% mn10_data = mn10_data(:, :, :, :, ind);
+% mn10_label = mn10_label(ind);
+
+% find the indices for different classes
+handles.label_0 = find(mn10_label == 0);    % 92, 94  : bathhub
+handles.label_1 = find(mn10_label == 1);    % 2, 4    : bed
+handles.label_2 = find(mn10_label == 2);    % 5, 11   : chair
+handles.label_3 = find(mn10_label == 3);    % 24, 61  : desk
+handles.label_4 = find(mn10_label == 4);    % 54, 146 : dresser
+handles.label_5 = find(mn10_label == 5);    % 3, 14   : monitor
+handles.label_6 = find(mn10_label == 6);    % 39, 47  : nighstand
+handles.label_7 = find(mn10_label == 7);    % 1, 7    : sofa
+handles.label_8 = find(mn10_label == 8);    % 6, 46   : table
+handles.label_9 = find(mn10_label == 9);    % 9, 16   : toilet
+
+% label_0 bathhub
+label_0_0 = handles.label_0(find(mn10_pose(handles.label_0) == 0));
+label_0_1 = handles.label_0(find(mn10_pose(handles.label_0) == 1));
+label_0_2 = handles.label_0(find(mn10_pose(handles.label_0) == 2));
+label_0_3 = handles.label_0(find(mn10_pose(handles.label_0) == 3));
+label_0_4 = handles.label_0(find(mn10_pose(handles.label_0) == 4));
+label_0_5 = handles.label_0(find(mn10_pose(handles.label_0) == 5));
+
+% label_1 bed
+label_1_6 = handles.label_1(find(mn10_pose(handles.label_1) == 6));
+label_1_7 = handles.label_1(find(mn10_pose(handles.label_1) == 7));
+label_1_8 = handles.label_1(find(mn10_pose(handles.label_1) == 8));
+label_1_9 = handles.label_1(find(mn10_pose(handles.label_1) == 9));
+label_1_10 = handles.label_1(find(mn10_pose(handles.label_1) == 10));
+label_1_11 = handles.label_1(find(mn10_pose(handles.label_1) == 11));
+label_1_12 = handles.label_1(find(mn10_pose(handles.label_1) == 12));
+label_1_13 = handles.label_1(find(mn10_pose(handles.label_1) == 13));
+label_1_14 = handles.label_1(find(mn10_pose(handles.label_1) == 14));
+label_1_15 = handles.label_1(find(mn10_pose(handles.label_1) == 15));
+label_1_16 = handles.label_1(find(mn10_pose(handles.label_1) == 16));
+label_1_17 = handles.label_1(find(mn10_pose(handles.label_1) == 17));
+
+% label_2 chair
+label_2_18 = handles.label_2(find(mn10_pose(handles.label_2) == 18));
+label_2_19 = handles.label_2(find(mn10_pose(handles.label_2) == 19));
+label_2_20 = handles.label_2(find(mn10_pose(handles.label_2) == 20));
+label_2_21 = handles.label_2(find(mn10_pose(handles.label_2) == 21));
+label_2_22 = handles.label_2(find(mn10_pose(handles.label_2) == 22));
+label_2_23 = handles.label_2(find(mn10_pose(handles.label_2) == 23));
+label_2_24 = handles.label_2(find(mn10_pose(handles.label_2) == 24));
+label_2_25 = handles.label_2(find(mn10_pose(handles.label_2) == 25));
+label_2_26 = handles.label_2(find(mn10_pose(handles.label_2) == 26));
+label_2_27 = handles.label_2(find(mn10_pose(handles.label_2) == 27));
+label_2_28 = handles.label_2(find(mn10_pose(handles.label_2) == 28));
+label_2_29 = handles.label_2(find(mn10_pose(handles.label_2) == 29));
+
+% label_3 desk
+label_3_30 = handles.label_3(find(mn10_pose(handles.label_3) == 30));
+label_3_31 = handles.label_3(find(mn10_pose(handles.label_3) == 31));
+label_3_32 = handles.label_3(find(mn10_pose(handles.label_3) == 32));
+label_3_33 = handles.label_3(find(mn10_pose(handles.label_3) == 33));
+label_3_34 = handles.label_3(find(mn10_pose(handles.label_3) == 34));
+label_3_35 = handles.label_3(find(mn10_pose(handles.label_3) == 35));
+label_3_36 = handles.label_3(find(mn10_pose(handles.label_3) == 36));
+label_3_37 = handles.label_3(find(mn10_pose(handles.label_3) == 37));
+label_3_38 = handles.label_3(find(mn10_pose(handles.label_3) == 38));
+label_3_39 = handles.label_3(find(mn10_pose(handles.label_3) == 39));
+label_3_40 = handles.label_3(find(mn10_pose(handles.label_3) == 40));
+label_3_41 = handles.label_3(find(mn10_pose(handles.label_3) == 41));
+
+% label_4 dresser
+label_4_42 = handles.label_4(find(mn10_pose(handles.label_4) == 42));
+label_4_43 = handles.label_4(find(mn10_pose(handles.label_4) == 43));
+label_4_44 = handles.label_4(find(mn10_pose(handles.label_4) == 44));
+label_4_45 = handles.label_4(find(mn10_pose(handles.label_4) == 45));
+label_4_46 = handles.label_4(find(mn10_pose(handles.label_4) == 46));
+label_4_47 = handles.label_4(find(mn10_pose(handles.label_4) == 47));
+label_4_48 = handles.label_4(find(mn10_pose(handles.label_4) == 48));
+label_4_49 = handles.label_4(find(mn10_pose(handles.label_4) == 49));
+label_4_50 = handles.label_4(find(mn10_pose(handles.label_4) == 50));
+label_4_51 = handles.label_4(find(mn10_pose(handles.label_4) == 51));
+label_4_52 = handles.label_4(find(mn10_pose(handles.label_4) == 52));
+label_4_53 = handles.label_4(find(mn10_pose(handles.label_4) == 53));
+
+% label_5 monitor
+label_5_54 = handles.label_5(find(mn10_pose(handles.label_5) == 54));
+label_5_55 = handles.label_5(find(mn10_pose(handles.label_5) == 55));
+label_5_56 = handles.label_5(find(mn10_pose(handles.label_5) == 56));
+label_5_57 = handles.label_5(find(mn10_pose(handles.label_5) == 57));
+label_5_58 = handles.label_5(find(mn10_pose(handles.label_5) == 58));
+label_5_59 = handles.label_5(find(mn10_pose(handles.label_5) == 59));
+label_5_60 = handles.label_5(find(mn10_pose(handles.label_5) == 60));
+label_5_61 = handles.label_5(find(mn10_pose(handles.label_5) == 61));
+label_5_62 = handles.label_5(find(mn10_pose(handles.label_5) == 62));
+label_5_63 = handles.label_5(find(mn10_pose(handles.label_5) == 63));
+label_5_64 = handles.label_5(find(mn10_pose(handles.label_5) == 64));
+label_5_65 = handles.label_5(find(mn10_pose(handles.label_5) == 65));
+
+% label_6 nightstand
+label_6_66 = handles.label_6(find(mn10_pose(handles.label_6) == 66));
+label_6_67 = handles.label_6(find(mn10_pose(handles.label_6) == 67));
+label_6_68 = handles.label_6(find(mn10_pose(handles.label_6) == 68));
+label_6_69 = handles.label_6(find(mn10_pose(handles.label_6) == 69));
+label_6_70 = handles.label_6(find(mn10_pose(handles.label_6) == 70));
+label_6_71 = handles.label_6(find(mn10_pose(handles.label_6) == 71));
+label_6_72 = handles.label_6(find(mn10_pose(handles.label_6) == 72));
+label_6_73 = handles.label_6(find(mn10_pose(handles.label_6) == 73));
+label_6_74 = handles.label_6(find(mn10_pose(handles.label_6) == 74));
+label_6_75 = handles.label_6(find(mn10_pose(handles.label_6) == 75));
+label_6_76 = handles.label_6(find(mn10_pose(handles.label_6) == 76));
+label_6_77 = handles.label_6(find(mn10_pose(handles.label_6) == 77));
+
+% label_7 sofa
+label_7_78 = handles.label_7(find(mn10_pose(handles.label_7) == 78));
+label_7_79 = handles.label_7(find(mn10_pose(handles.label_7) == 79));
+label_7_80 = handles.label_7(find(mn10_pose(handles.label_7) == 80));
+label_7_81 = handles.label_7(find(mn10_pose(handles.label_7) == 81));
+label_7_82 = handles.label_7(find(mn10_pose(handles.label_7) == 82));
+label_7_83 = handles.label_7(find(mn10_pose(handles.label_7) == 83));
+label_7_84 = handles.label_7(find(mn10_pose(handles.label_7) == 84));
+label_7_85 = handles.label_7(find(mn10_pose(handles.label_7) == 85));
+label_7_86 = handles.label_7(find(mn10_pose(handles.label_7) == 86));
+label_7_87 = handles.label_7(find(mn10_pose(handles.label_7) == 87));
+label_7_88 = handles.label_7(find(mn10_pose(handles.label_7) == 88));
+label_7_89 = handles.label_7(find(mn10_pose(handles.label_7) == 89));
+
+% label_8 table
+label_8_90 = handles.label_8(find(mn10_pose(handles.label_8) == 90));
+label_8_91 = handles.label_8(find(mn10_pose(handles.label_8) == 91));
+label_8_92 = handles.label_8(find(mn10_pose(handles.label_8) == 92));
+
+% label_9 toilet
+label_9_93 = handles.label_9(find(mn10_pose(handles.label_9) == 93));
+label_9_94 = handles.label_9(find(mn10_pose(handles.label_9) == 94));
+label_9_95 = handles.label_9(find(mn10_pose(handles.label_9) == 95));
+label_9_96 = handles.label_9(find(mn10_pose(handles.label_9) == 96));
+label_9_97 = handles.label_9(find(mn10_pose(handles.label_9) == 97));
+label_9_98 = handles.label_9(find(mn10_pose(handles.label_9) == 98));
+label_9_99 = handles.label_9(find(mn10_pose(handles.label_9) == 99));
+label_9_100 = handles.label_9(find(mn10_pose(handles.label_9) == 100));
+label_9_101 = handles.label_9(find(mn10_pose(handles.label_9) == 101));
+label_9_102 = handles.label_9(find(mn10_pose(handles.label_9) == 102));
+label_9_103 = handles.label_9(find(mn10_pose(handles.label_9) == 103));
+label_9_104 = handles.label_9(find(mn10_pose(handles.label_9) == 104));
+
+% concatenate all labels for processing
+handles.label_0_pose_cell = {label_0_0, label_0_1, label_0_2, label_0_3, label_0_4, label_0_5};
+handles.label_1_pose_cell = {label_1_6, label_1_7, label_1_8, label_1_9, label_1_10, label_1_11, label_1_12, ...
+    label_1_13, label_1_14, label_1_15, label_1_16, label_1_17};
+handles.label_2_pose_cell = {label_2_18, label_2_19, label_2_20, label_2_21, label_2_22, label_2_23, label_2_24, ...
+    label_2_25, label_2_26, label_2_27, label_2_28, label_2_29};
+handles.label_3_pose_cell = {label_3_30, label_3_31, label_3_32, label_3_33, label_3_34, label_3_35, label_3_36, ...
+    label_3_37, label_3_38, label_3_39, label_3_40, label_3_41};
+handles.label_4_pose_cell = {label_4_42, label_4_43, label_4_44, label_4_45, label_4_46, label_4_47, label_4_48, ...
+    label_4_49, label_4_50, label_4_51, label_4_52, label_4_53};
+handles.label_5_pose_cell = {label_5_54, label_5_55, label_5_56, label_5_57, label_5_58, label_5_59, label_5_60, ...
+    label_5_61, label_5_62, label_5_63, label_5_64, label_5_65};
+handles.label_6_pose_cell = {label_6_66, label_6_67, label_6_68, label_6_69, label_6_70, label_6_71, label_6_72, ...
+    label_6_73, label_6_74, label_6_75, label_6_76, label_6_77};
+handles.label_7_pose_cell = {label_7_78, label_7_79, label_7_80, label_7_81, label_7_82, label_7_83, label_7_84, ...
+    label_7_85, label_7_86, label_7_87, label_7_88, label_7_89};
+handles.label_8_pose_cell = {label_8_90, label_8_91, label_8_92};
+handles.label_9_pose_cell = {label_9_93, label_9_94, label_9_95, label_9_96, label_9_97, label_9_98, label_9_99, ...
+    label_9_100, label_9_101, label_9_102, label_9_103, label_9_104};
+
+
+% define some default parameters
+handles.count_flag = false;
+handles.kernel_level = false;
+handles.node_level = false;
+handles.sum_norm_flag = false;
+handles.max_norm_flag = false;
+handles.renorm_flag = false;
+
+% Update handles structure
+guidata(hObject, handles);
+
+% UIWAIT makes orion_gui wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+
+% --- Outputs from this function are returned to the command line.
+function varargout = orion_gui_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on selection change in orion_version_popupmenu.
+function orion_version_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to orion_version_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns orion_version_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from orion_version_popupmenu
+
+% Determine the selected data set.
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject,'String'));
+
+handles.orion_version = contents{val};
+
+% Save the handles structure.
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function orion_version_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to orion_version_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in norm_type_popupmenu.
+function norm_type_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to norm_type_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns norm_type_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from norm_type_popupmenu
+
+% Determine the selected data set.
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject,'String'));
+
+% Set current data to the selected data set.
+switch contents{val}
+    case 'sum' 
+       handles.sum_norm_flag = true;
+       handles.max_norm_flag = false;
+    case 'max' 
+       handles.max_norm_flag = true;
+       handles.sum_norm_flag = false;
+end
+
+% Save the handles structure.
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function norm_type_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to norm_type_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in renorm_popupmenu.
+function renorm_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to renorm_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns renorm_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from renorm_popupmenu
+
+% Determine the selected data set.
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject, 'String'));
+
+% Set current data to the selected data set.
+switch contents{val}
+    case 'renorm' 
+       handles.renorm_flag = true;
+    case 'unrenorm' 
+       handles.renorm_flag = false;
+end
+
+% Save the handles structure.
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function renorm_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to renorm_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function top_k_edit_Callback(hObject, eventdata, handles)
+% hObject    handle to top_k_edit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of top_k_edit as text
+%        str2double(get(hObject,'String')) returns contents of top_k_edit as a double
+
+handles.K = str2double(get(hObject, 'String'));
+
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function top_k_edit_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to top_k_edit (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in label_index_popupmenu.
+function label_index_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to label_index_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns label_index_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from label_index_popupmenu
+
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject, 'String'));
+display(contents);
+
+switch contents{val}
+    case 'label_0'
+        handles.label_index_popupmenu = handles.label_0_pose_cell;
+    case 'label_1'
+        handles.label_index_popupmenu = handles.label_1_pose_cell;
+    case 'label_2' 
+        handles.label_index_popupmenu = handles.label_2_pose_cell;
+    case 'label_3'
+        handles.label_index_popupmenu = handles.label_3_pose_cell;
+    case 'label_4' 
+        handles.label_index_popupmenu = handles.label_4_pose_cell;
+    case 'label_5'
+        handles.label_index_popupmenu = handles.label_5_pose_cell;
+    case 'label_6' 
+        handles.label_index_popupmenu = handles.label_6_pose_cell;
+    case 'label_7'
+        handles.label_index_popupmenu = handles.label_7_pose_cell;
+    case 'label_8' 
+        handles.label_index_popupmenu = handles.label_8_pose_cell;
+    case 'label_9'
+        handles.label_index_popupmenu = handles.label_9_pose_cell;
+end
+
+%display(handles.label_index_popupmenu);
+
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function label_index_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to label_index_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in pose_index_popupmenu.
+function pose_index_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to pose_index_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns pose_index_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from pose_index_popupmenu
+
+contents = cellstr(get(hObject, 'String'));
+val = get(hObject, 'Value');
+handles.pose_index_popupmenu = handles.label_index_popupmenu{str2double(contents{val}) + 1};
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function pose_index_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to pose_index_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+% --- Executes on button press in visualize_pushbutton.
+function visualize_pushbutton_Callback(hObject, eventdata, handles)
+% hObject    handle to visualize_pushbutton (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+image_visual_ORION(handles.mn10_data, handles.orion_version, handles.pose_index_popupmenu, handles.K, handles.count_flag, ...
+    handles.kernel_level, handles.node_level, handles.sum_norm_flag, handles.max_norm_flag, handles.renorm_flag);
+
+% Update handles structure
+guidata(hObject, handles);
+
+
+% --- Executes on selection change in count_flag_popupmenu.
+function count_flag_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to count_flag_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns count_flag_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from count_flag_popupmenu
+
+% Determine the selected data set.
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject, 'String'));
+
+% Set current data to the selected data set.
+switch contents{val}
+    case 'value' 
+       handles.count_flag = false;
+    case 'frequency' 
+       handles.count_flag = true;
+end
+
+% Save the handles structure.
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function count_flag_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to count_flag_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in visual_level_popupmenu.
+function visual_level_popupmenu_Callback(hObject, eventdata, handles)
+% hObject    handle to visual_level_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns visual_level_popupmenu contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from visual_level_popupmenu
+
+% Determine the selected data set.
+val = get(hObject, 'Value');
+contents = cellstr(get(hObject,'String'));
+
+% Set current data to the selected data set.
+switch contents{val}
+    case 'kernel' 
+       handles.kernel_level = true;
+       handles.node_level = false;
+    case 'node' 
+       handles.node_level = true;
+       handles.kernel_level = false;
+end
+
+% Save the handles structure.
+guidata(hObject, handles);
+
+
+% --- Executes during object creation, after setting all properties.
+function visual_level_popupmenu_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to visual_level_popupmenu (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end

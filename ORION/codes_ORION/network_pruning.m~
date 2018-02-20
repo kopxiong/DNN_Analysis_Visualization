@@ -1,0 +1,241 @@
+tic;
+% add this package to Matlab search PATH by starting matlab from caffe root folder
+addpath ./matlab
+addpath ../../masterproject/codes
+
+model = './examples/mnist/lenet_yufeng.prototxt';
+weights = './examples/mnist/lenet_iter_20000.caffemodel';
+
+% caffe.set_device(0);
+% caffe.set_mode_gpu();
+
+caffe.set_mode_cpu();
+
+% create net and load weights
+net = caffe.Net(model, weights, 'test');
+
+% load the training images and labels
+images = loadMNISTImages('train-images-idx3-ubyte');
+labels = loadMNISTLabels('train-labels-idx1-ubyte');
+
+% pick a small number for debug only
+ind = floor(linspace(1, numel(labels), 1000));
+images = images(:, ind);
+labels = labels(ind);
+
+% load the test images and labels
+images_test = loadMNISTImages('t10k-images.idx3-ubyte');
+labels_test = loadMNISTLabels('t10k-labels.idx1-ubyte');
+
+labels_0 = find(labels == 0);
+labels_1 = find(labels == 1);
+labels_2 = find(labels == 2);
+labels_3 = find(labels == 3);
+labels_4 = find(labels == 4);
+labels_5 = find(labels == 5);
+labels_6 = find(labels == 6);
+labels_7 = find(labels == 7);
+labels_8 = find(labels == 8);
+labels_9 = find(labels == 9);
+
+labels_cell = {labels_0, labels_1, labels_2, labels_3, labels_4, labels_5, labels_6, labels_7, labels_8, labels_9};
+
+% get the weights
+weights_conv1 = net.params('conv1', 1).get_data();       % size = 5 * 5 * 1 * 20
+weights_conv2 = net.params('conv2', 1).get_data();       % size = 5 * 5 * 20 * 50
+weights_ip1 = net.params('ip1', 1).get_data();           % size = 800 * 500
+weights_ip2 = net.params('ip2', 1).get_data();           % size = 500 * 10   
+
+% get the bias
+bias_conv1 = net.layers('conv1').params(2).get_data();
+bias_conv2 = net.layers('conv2').params(2).get_data();
+bias_ip1 = net.layers('ip1').params(2).get_data();      
+bias_ip2 = net.layers('ip2').params(2).get_data(); 
+
+% top K contributions to be considered for pruning proof
+K = 3;
+
+m_contribs_CONV2 = zeros([size(weights_conv1, 4), size(weights_conv2, 4), 10]);
+m_contribs_IP1 = zeros([size(weights_conv2, 4), size(weights_ip1, 2), 10]);
+m_contribs_IP2 = zeros([size(weights_ip1, 2), size(weights_ip2, 2), 10]);
+
+pool1_contribsConv2_pool2 = zeros([size(weights_conv1, 4), 3, 10]);
+pool2_contribsIp1_ip1 = zeros([size(weights_conv2, 4), 3, 10]);
+ip1_contribsIp2_ip2 = zeros([size(weights_ip1, 2), 3, 10]);
+
+l = 1;
+while l < 11
+    display(l);
+    labels_index = labels_cell{l};   
+    [m_contribs_IP2(:, :, l), m_contribs_IP1(:, :, l), m_contribs_CONV2(:, :, l)] = top_K_cons(labels_index, K);   
+    
+    % contributions normalization and saving in layer ip2
+    avg_m_contribs_IP2 = m_contribs_IP2(:, :, l) ./ size(weights_ip1, 2);  
+    [sortedValuesConsIp2, sortedIndicesConsIp2] = sort(avg_m_contribs_IP2, 2, 'descend');
+    
+    ip1_contribsIp2_ip2(:, 1, l) = (1: size(weights_ip1, 2))';
+    ip1_contribsIp2_ip2(:, 2, l) = sortedValuesConsIp2(:, 1)'; 
+    ip1_contribsIp2_ip2(:, 3, l) = sortedIndicesConsIp2(:, 1)';
+
+    % contributions normalization and saving in layer ip1
+    avg_m_contribs_IP1 = m_contribs_IP1(:, :, l) ./ size(weights_conv2, 4);  
+    [sortedValuesConsIp1, sortedIndicesConsIp1] = sort(avg_m_contribs_IP1, 2, 'descend');
+    
+    pool2_contribsIp1_ip1(:, 1, l) = (1: size(weights_conv2, 4))';
+    pool2_contribsIp1_ip1(:, 2, l) = sortedValuesConsIp1(:, 1)'; 
+    pool2_contribsIp1_ip1(:, 3, l) = sortedIndicesConsIp1(:, 1)';
+    
+    % contributions normalization and saving in layer conv2
+    avg_m_contribs_CONV2 = m_contribs_CONV2(:, :, l) ./ size(weights_conv1, 4);  
+    [sortedValuesConsConv2, sortedIndicesConsConv2] = sort(avg_m_contribs_CONV2, 2, 'descend');
+ 
+    pool1_contribsConv2_pool2(:, 1, l) = (1: size(weights_conv1, 4))';
+    pool1_contribsConv2_pool2(:, 2, l) = sortedValuesConsConv2(:, 1)'; 
+    pool1_contribsConv2_pool2(:, 3, l) = sortedIndicesConsConv2(:, 1)';
+    
+    l = l + 1;
+end
+
+% keep the maximal contribution for node_ip1
+keep_node_ip1 = [];
+for i = 1: 10
+    keep_node_ip1 = [keep_node_ip1; ip1_contribsIp2_ip2(:, :, i)];
+end
+[u, ~, J] = unique(keep_node_ip1(:, 1));
+uni_node_ip1 = [u, accumarray(J, keep_node_ip1(:, 2), [], @max), accumarray(J, keep_node_ip1(:, 3), [], @max)];
+
+% keep the maximal contribution for node_pool2
+keep_kernel_pool2 = [];
+for i = 1: 10
+    keep_kernel_pool2 = [keep_kernel_pool2; pool2_contribsIp1_ip1(:, :, i)];
+end
+[v, ~, W] = unique(keep_kernel_pool2(:, 1));
+uni_kernel_pool2 = [v, accumarray(W, keep_kernel_pool2(:, 2), [], @max), accumarray(W, keep_kernel_pool2(:, 3), [], @max)];
+
+% keep the maximal contribution for node_pool1
+keep_kernel_pool1 = [];
+for i = 1: 10
+    keep_kernel_pool1 = [keep_kernel_pool1; pool1_contribsConv2_pool2(:, :, i)];
+end
+[v, ~, W] = unique(keep_kernel_pool1(:, 1));
+uni_kernel_pool1 = [v, accumarray(W, keep_kernel_pool1(:, 2), [], @max), accumarray(W, keep_kernel_pool1(:, 3), [], @max)];
+
+top_nodes_ip1 = 500;
+top_kernels_pool2 = 50;
+top_kernels_pool1 = 20;
+
+% which layer is goint to be pruned
+accuracy = zeros(top_kernels_pool1, 1);
+avg_prob = zeros(top_kernels_pool1, 1);
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% weights pruning for layer ip1 %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+for K = 500%: top_nodes_ip1
+    disp(sprintf('The number of kept node_ip1 is: %d', K));
+
+    [sortedValuesConsIp2, sortedIndicesConsIp2] = sort(uni_node_ip1(:, 2), 'descend');
+    K_maxValuesConsIp2 = sortedValuesConsIp2(1: K);
+    K_maxIndicesConsIp2 = sortedIndicesConsIp2(1: K);   
+
+    K_keep_node_ip1 = uni_node_ip1(K_maxIndicesConsIp2, 1);
+
+    pruned_weights_ip2 = zeros([size(weights_ip2, 1), size(weights_ip2, 2)]);
+
+    for i = 1: size(weights_ip2, 1)
+        if ismember(i, K_keep_node_ip1)
+            pruned_weights_ip2(i, :) = weights_ip2(i, :);
+        else
+            pruned_weights_ip2(i, :) = 0;
+        end
+    end
+    net.params('ip2', 1).set_data(pruned_weights_ip2);
+
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    % weights pruning for layer ip1 %
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    for N = 50%1: top_kernels_pool2
+        disp(sprintf('The number of kept kernel_pool2 is: %d', N));
+        N_keep_kernel_pool2 = [];
+
+        [sortedValuesConsIp1, sortedIndicesConsIp1] = sort(uni_kernel_pool2(:, 2), 'descend');
+        N_maxValuesConsIp1 = sortedValuesConsIp1(1: N);
+        N_maxIndicesConsIp1 = sortedIndicesConsIp1(1: N);   
+
+        N_keep_kernel_pool2 = uni_kernel_pool2(N_maxIndicesConsIp1, 1);     
+        pruned_weights_ip1 = zeros([size(weights_ip1, 1), size(weights_ip1, 2)]);
+
+        for j = 1: size(uni_kernel_pool2, 1)
+            if ismember(j, N_keep_kernel_pool2)
+                pruned_weights_ip1((j-1)*16+1: j*16, :) = weights_ip1((j-1)*16+1: j*16, :);
+            else
+                pruned_weights_ip1((j-1)*16+1: j*16, :) = 0;
+            end
+        end
+        net.params('ip1', 1).set_data(pruned_weights_ip1);
+        
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        % weights pruning for layer conv2 %
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%         for P = 1: top_kernels_pool1
+%             disp(sprintf('The number of kept kernel_pool1 is: %d', P));
+%             P_keep_kernel_pool1 = [];
+% 
+%             [sortedValuesConsConv2, sortedIndicesConsConv2] = sort(uni_kernel_pool1(:, 2), 'descend');
+%             P_maxValuesConsConv2 = sortedValuesConsConv2(1: P);
+%             P_maxIndicesConsConv2 = sortedIndicesConsConv2(1: P);   
+% 
+%             P_keep_kernel_pool1 = uni_kernel_pool1(P_maxIndicesConsConv2, 1);     
+%             pruned_weights_conv2 = zeros([size(weights_conv2, 1), size(weights_conv2, 2), size(weights_conv2, 3), size(weights_conv2, 4)]);
+% 
+%             for k = 1: size(uni_kernel_pool1, 1)
+%                 if ismember(k, P_keep_kernel_pool1)
+%                     pruned_weights_conv2(:, :, k, :) = weights_conv2(:, :, k, :);
+%                 else
+%                     pruned_weights_conv2(:, :, k, :) = 0;
+%                 end
+%             end
+%             net.params('conv2', 1).set_data(pruned_weights_conv2);
+        
+        % testing on test dataset after pruning
+        res_prob = zeros(length(labels_test), 1);        % store the maximal probability
+        counter = 0;                                     % count the misclassified examples 
+        for i = 1 : length(labels_test) 
+            img = images_test(:, i);
+            data = reshape(img, [28 28 1 1]);
+
+            % transpose the data before plugging into the network
+            res = net.forward({data'});
+            prob = res{1};
+
+            [maxValue, linearIndexesOfMaxes] = max(prob(:));
+            [rowsOfMaxes, colsOfMaxes] = find(prob == maxValue);
+
+            res_prob(i) = maxValue;
+
+            if(rowsOfMaxes - 1) ~= labels_test(i)
+                % disp(i)
+                % disp(sprintf('The correct label is: %d', rowsOfMaxes-1));
+                counter = counter + 1;
+            end
+        end
+
+        disp(sprintf('misclassified n: %d', counter));
+        accuracy(P) = 1 - counter/length(labels_test);
+        avg_prob(P) = mean(res_prob);
+    end
+end
+
+% plot the accuracy and average probability
+x_nodes = 1: top_kernels_pool1;
+figure; plot(x_nodes, avg_prob);
+title('Average probability');
+xlabel('number of nodes');
+ylabel('avg_prob');
+
+figure; plot(x_nodes, accuracy);
+title('Accuracy');
+xlabel('number of nodes');
+ylabel('accuracy');
+
+toc;
